@@ -1,0 +1,9 @@
+{
+  "courses": [
+    { "id": "c1", "code": "IT3122", "name": "Computer Security", "credits": 3, "lecturer": "Dr. Perera" },
+    { "id": "c2", "code": "IT3123", "name": "Operating Systems", "credits": 3, "lecturer": "Prof. Silva" }
+  ],
+  "assignments": [
+    { "id": "a1", "courseId": "c1", "title": "Cipher Implementation", "dueDate": "2026-11-15", "status": "Pending", "priority": "High", "description": "Implement a monoalphabetic substitution cipher." }
+  ]
+}
