@@ -1,9 +1,58 @@
 {
   "courses": [
-    { "id": "c1", "code": "IT3122", "name": "Computer Security", "credits": 3, "lecturer": "Dr. Perera" },
-    { "id": "c2", "code": "IT3123", "name": "Operating Systems", "credits": 3, "lecturer": "Prof. Silva" }
+    {
+      "id": "1",
+      "code": "ICT3102",
+      "name": "Mobile Application Development",
+      "lecturer": "Dr. K. Silva",
+      "credits": 3
+    },
+    {
+      "id": "2",
+      "code": "ICT3104",
+      "name": "Software Quality Assurance",
+      "lecturer": "Prof. A. Perera",
+      "credits": 3
+    },
+    {
+      "id": "3",
+      "code": "ICT3106",
+      "name": "Design & Analysis of Algorithms",
+      "lecturer": "Dr. N. Fernando",
+      "credits": 3
+    },
+    {
+      "id": "4",
+      "code": "ICT3108",
+      "name": "Digital Image Processing",
+      "lecturer": "Ms. R. Jayawardena",
+      "credits": 2
+    }
   ],
   "assignments": [
-    { "id": "a1", "courseId": "c1", "title": "Cipher Implementation", "dueDate": "2026-11-15", "status": "Pending", "priority": "High", "description": "Implement a monoalphabetic substitution cipher." }
+    {
+      "id": "101",
+      "title": "React Native Campus App (ICA 3)",
+      "courseCode": "ICT3102",
+      "dueDate": "2026-11-14",
+      "status": "Pending",
+      "priority": "High"
+    },
+    {
+      "id": "102",
+      "title": "Automated Test Suite Report",
+      "courseCode": "ICT3104",
+      "dueDate": "2026-11-18",
+      "status": "Pending",
+      "priority": "Medium"
+    },
+    {
+      "id": "103",
+      "title": "Dynamic Programming Lab",
+      "courseCode": "ICT3106",
+      "dueDate": "2026-11-05",
+      "status": "Completed",
+      "priority": "Low"
+    }
   ]
 }
