@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useContext } from 'react';
-import { View, Text, StyleSheet, FlatList } from 'react-native';
+import { View, Text, StyleSheet, FlatList, TouchableOpacity } from 'react-native';
 import { getAppData } from '../services/storage';
 import { Ionicons } from '@expo/vector-icons';
 import { ThemeContext } from '../../App';
@@ -33,7 +33,10 @@ export default function CoursesScreen({ navigation }) {
         data={courses}
         keyExtractor={(item) => item.id}
         renderItem={({ item }) => (
-          <View style={[styles.courseCard, { backgroundColor: cardBg }]}>
+          <TouchableOpacity 
+            style={[styles.courseCard, { backgroundColor: cardBg }]}
+            onPress={() => navigation.navigate('CourseDetail', { course: item })}
+          >
             <View style={styles.topRow}>
               <Text style={styles.courseCode}>{item.code}</Text>
               <Text style={styles.creditBadge}>{item.credits || 3} Credits</Text>
@@ -41,9 +44,9 @@ export default function CoursesScreen({ navigation }) {
             <Text style={[styles.courseName, { color: textColor }]}>{item.name}</Text>
             <View style={styles.lecturerRow}>
               <Ionicons name="person-outline" size={14} color={subText} />
-              <Text style={[styles.lecturerText, { color: subText }]}>{item.lecturer}</Text>
+              <Text style={[styles.lecturerText, { color: subText }]}>{item.lecturer} • Tap for VLE & ICA Calc</Text>
             </View>
-          </View>
+          </TouchableOpacity>
         )}
         contentContainerStyle={styles.listContainer}
       />
@@ -55,7 +58,7 @@ const styles = StyleSheet.create({
   container: { flex: 1, padding: 16 },
   headerTitle: { fontSize: 19, fontWeight: 'bold', marginBottom: 14 },
   listContainer: { paddingBottom: 20 },
-  courseCard: { padding: 16, borderRadius: 14, marginBottom: 12, shadowColor: '#000', shadowOpacity: 0.05, shadowRadius: 5, elevation: 2 },
+  courseCard: { padding: 16, borderRadius: 14, marginBottom: 12, elevation: 2 },
   topRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 },
   courseCode: { fontSize: 13, fontWeight: 'bold', color: '#007AFF', backgroundColor: 'rgba(0,122,255,0.1)', paddingHorizontal: 8, paddingVertical: 3, borderRadius: 6 },
   creditBadge: { fontSize: 12, color: '#16a34a', fontWeight: '600' },
