@@ -10,7 +10,7 @@ export default function CoursesScreen({ navigation }) {
   const [name, setName] = useState('');
   const [lecturer, setLecturer] = useState('');
   const [credits, setCredits] = useState('3');
-  const [isPractical, setIsPractical] = useState(false); // Theory or Practical toggle
+  const [isPractical, setIsPractical] = useState(false);
   const { isDark } = useContext(ThemeContext);
 
   useEffect(() => {
@@ -38,7 +38,7 @@ export default function CoursesScreen({ navigation }) {
       name,
       lecturer,
       credits: parseInt(credits) || 3,
-      isPractical: isPractical, // Save whether it's practical or theory
+      isPractical: isPractical,
       subTopics: [],
       resourceLink: '',
       notes: ''
@@ -56,6 +56,29 @@ export default function CoursesScreen({ navigation }) {
     setLecturer('');
     setIsPractical(false);
     Alert.alert('Success', 'Course unit added successfully!');
+  };
+
+  // Delete Course Function with Confirmation Alert
+  const handleDeleteCourse = async (id) => {
+    Alert.alert(
+      "Delete Course Unit",
+      "Are you sure you want to delete this course?",
+      [
+        { text: "Cancel", style: "cancel" },
+        { 
+          text: "Delete", 
+          style: "destructive", 
+          onPress: async () => {
+            const updatedCourses = courses.filter(c => c.id !== id);
+            setCourses(updatedCourses);
+
+            const data = await getAppData();
+            data.courses = updatedCourses;
+            await saveAppData(data);
+          }
+        }
+      ]
+    );
   };
 
   const bg = isDark ? '#111827' : '#f4f6f9';
@@ -103,7 +126,6 @@ export default function CoursesScreen({ navigation }) {
           onChangeText={setLecturer}
         />
 
-        {/* Practical vs Theory Selection */}
         <TouchableOpacity 
           style={[styles.typeSelectBtn, { backgroundColor: isPractical ? '#7c3aed' : '#e5e7eb' }]}
           onPress={() => setIsPractical(!isPractical)}
@@ -125,21 +147,26 @@ export default function CoursesScreen({ navigation }) {
         data={courses}
         keyExtractor={item => item.id}
         renderItem={({ item }) => (
-          <TouchableOpacity
-            style={[styles.courseCard, { backgroundColor: cardBg }]}
-            onPress={() => navigation.navigate('CourseDetail', { course: item })}
-          >
-            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
-              <View>
-                <Text style={styles.courseCode}>{item.code} ({item.credits || 3} Credits)</Text>
-                <Text style={[styles.courseName, { color: textColor }]}>{item.name}</Text>
-                <Text style={{ fontSize: 11, color: item.isPractical ? '#7c3aed' : '#007AFF', fontWeight: 'bold', marginTop: 2 }}>
-                  {item.isPractical ? '🔬 Practical Module (40% ICA)' : '📚 Theory Module (30% ICA)'}
-                </Text>
-              </View>
-              <Ionicons name="chevron-forward" size={20} color={subText} />
-            </View>
-          </TouchableOpacity>
+          <View style={[styles.courseCard, { backgroundColor: cardBg }]}>
+            <TouchableOpacity
+              style={{ flex: 1 }}
+              onPress={() => navigation.navigate('CourseDetail', { course: item })}
+            >
+              <Text style={styles.courseCode}>{item.code} ({item.credits || 3} Credits)</Text>
+              <Text style={[styles.courseName, { color: textColor }]}>{item.name}</Text>
+              <Text style={{ fontSize: 11, color: item.isPractical ? '#7c3aed' : '#007AFF', fontWeight: 'bold', marginTop: 2 }}>
+                {item.isPractical ? '🔬 Practical Module (40% ICA)' : '📚 Theory Module (30% ICA)'}
+              </Text>
+            </TouchableOpacity>
+
+            {/* Delete Course Button */}
+            <TouchableOpacity 
+              onPress={() => handleDeleteCourse(item.id)}
+              style={styles.deleteBtn}
+            >
+              <Ionicons name="trash-outline" size={20} color="#ef4444" />
+            </TouchableOpacity>
+          </View>
         )}
       />
     </View>
@@ -157,7 +184,8 @@ const styles = StyleSheet.create({
   submitBtn: { backgroundColor: '#007AFF', padding: 12, borderRadius: 8, alignItems: 'center' },
   submitBtnText: { color: '#fff', fontWeight: 'bold' },
   sectionHeader: { fontSize: 16, fontWeight: 'bold', marginBottom: 10 },
-  courseCard: { padding: 14, borderRadius: 12, marginBottom: 8, elevation: 1 },
+  courseCard: { padding: 14, borderRadius: 12, marginBottom: 8, elevation: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   courseCode: { fontSize: 12, fontWeight: 'bold', color: '#007AFF', marginBottom: 2 },
-  courseName: { fontSize: 15, fontWeight: 'bold' }
+  courseName: { fontSize: 15, fontWeight: 'bold' },
+  deleteBtn: { padding: 8, justifyContent: 'center', alignItems: 'center' }
 });
