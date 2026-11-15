@@ -34,22 +34,24 @@ export default function CoursesScreen({ navigation }) {
 
     const newCourse = {
       id: Date.now().toString(),
-      code,
-      name,
-      lecturer,
+      code: code.trim(),
+      name: name.trim(),
+      lecturer: lecturer.trim(),
       credits: parseInt(credits) || 3,
-      isPractical: isPractical,
+      theoryCredits: 2,
+      practicalCredits: 1,
+      hasPractical: isPractical,
       subTopics: [],
       resourceLink: '',
       notes: ''
     };
 
-    const updatedCourses = [...courses, newCourse];
-    setCourses(updatedCourses);
-
     const data = await getAppData();
+    const updatedCourses = [...(data.courses || []), newCourse];
+    
     data.courses = updatedCourses;
     await saveAppData(data);
+    setCourses(updatedCourses);
 
     setCode('');
     setName('');
@@ -58,7 +60,6 @@ export default function CoursesScreen({ navigation }) {
     Alert.alert('Success', 'Course unit added successfully!');
   };
 
-  // Delete Course Function with Confirmation Alert
   const handleDeleteCourse = async (id) => {
     Alert.alert(
       "Delete Course Unit",
@@ -69,12 +70,12 @@ export default function CoursesScreen({ navigation }) {
           text: "Delete", 
           style: "destructive", 
           onPress: async () => {
-            const updatedCourses = courses.filter(c => c.id !== id);
-            setCourses(updatedCourses);
-
             const data = await getAppData();
+            const updatedCourses = (data.courses || []).filter(c => c.id !== id);
+            
             data.courses = updatedCourses;
             await saveAppData(data);
+            setCourses(updatedCourses);
           }
         }
       ]
@@ -132,7 +133,7 @@ export default function CoursesScreen({ navigation }) {
         >
           <Ionicons name={isPractical ? "flask" : "book"} size={18} color={isPractical ? "#fff" : "#374151"} />
           <Text style={[styles.typeSelectText, { color: isPractical ? '#fff' : '#374151' }]}>
-            Type: {isPractical ? 'Practical Subject (40% ICA)' : 'Theory Subject (30% ICA)'}
+            Type: {isPractical ? 'Practical Subject (Theory + Practical)' : 'Pure Theory Subject'}
           </Text>
         </TouchableOpacity>
 
@@ -141,7 +142,7 @@ export default function CoursesScreen({ navigation }) {
         </TouchableOpacity>
       </View>
 
-      <Text style={[styles.sectionHeader, { color: textColor }]}>My Enrolled Courses</Text>
+      <Text style={[styles.sectionHeader, { color: textColor }]}>My Enrolled Courses ({courses.length})</Text>
 
       <FlatList
         data={courses}
@@ -154,17 +155,16 @@ export default function CoursesScreen({ navigation }) {
             >
               <Text style={styles.courseCode}>{item.code} ({item.credits || 3} Credits)</Text>
               <Text style={[styles.courseName, { color: textColor }]}>{item.name}</Text>
-              <Text style={{ fontSize: 11, color: item.isPractical ? '#7c3aed' : '#007AFF', fontWeight: 'bold', marginTop: 2 }}>
-                {item.isPractical ? '🔬 Practical Module (40% ICA)' : '📚 Theory Module (30% ICA)'}
+              <Text style={{ fontSize: 11, color: item.hasPractical ? '#7c3aed' : '#007AFF', fontWeight: 'bold', marginTop: 2 }}>
+                {item.hasPractical ? '🔬 Theory + Practical Module' : '📚 Pure Theory Module'}
               </Text>
             </TouchableOpacity>
 
-            {/* Delete Course Button */}
             <TouchableOpacity 
               onPress={() => handleDeleteCourse(item.id)}
               style={styles.deleteBtn}
             >
-              <Ionicons name="trash-outline" size={20} color="#ef4444" />
+              <Ionicons name="trash-outline" size={22} color="#ef4444" />
             </TouchableOpacity>
           </View>
         )}
@@ -187,5 +187,5 @@ const styles = StyleSheet.create({
   courseCard: { padding: 14, borderRadius: 12, marginBottom: 8, elevation: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   courseCode: { fontSize: 12, fontWeight: 'bold', color: '#007AFF', marginBottom: 2 },
   courseName: { fontSize: 15, fontWeight: 'bold' },
-  deleteBtn: { padding: 8, justifyContent: 'center', alignItems: 'center' }
+  deleteBtn: { padding: 10, justifyContent: 'center', alignItems: 'center' }
 });
