@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useContext } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput } from 'react-native';
 import { getAppData } from '../services/storage';
 import { ThemeContext } from '../../App';
 
@@ -16,6 +16,10 @@ export default function GPAScreen({ navigation }) {
   const [courses, setCourses] = useState([]);
   const [selectedGrades, setSelectedGrades] = useState({});
   const { isDark } = useContext(ThemeContext);
+
+  // Cumulative GPA State
+  const [prevGpa, setPrevGpa] = useState('');
+  const [prevCredits, setPrevCredits] = useState('');
 
   useEffect(() => {
     const unsubscribe = navigation.addListener('focus', () => {
@@ -41,7 +45,7 @@ export default function GPAScreen({ navigation }) {
     setSelectedGrades(prev => ({ ...prev, [courseId]: grade }));
   };
 
-  const calculateGPA = () => {
+  const calculateSemesterGPA = () => {
     let totalPoints = 0;
     let totalCredits = 0;
 
@@ -54,10 +58,29 @@ export default function GPAScreen({ navigation }) {
       totalCredits += credits;
     });
 
-    return totalCredits > 0 ? (totalPoints / totalCredits).toFixed(2) : '0.00';
+    const gpa = totalCredits > 0 ? (totalPoints / totalCredits).toFixed(2) : '0.00';
+    return { gpa: parseFloat(gpa), totalCredits };
   };
 
-  const gpa = calculateGPA();
+  const semesterResult = calculateSemesterGPA();
+
+  // Calculate Cumulative (Full) GPA
+  const calculateCumulativeGPA = () => {
+    const pGpa = parseFloat(prevGpa) || 0;
+    const pCreds = parseFloat(prevCredits) || 0;
+
+    if (pCreds === 0) return semesterResult.gpa.toFixed(2);
+
+    const prevPoints = pGpa * pCreds;
+    const currentPoints = semesterResult.gpa * semesterResult.totalCredits;
+    const totalCreds = pCreds + semesterResult.totalCredits;
+
+    const cumulative = totalCreds > 0 ? ((prevPoints + currentPoints) / totalCreds).toFixed(2) : '0.00';
+    return cumulative;
+  };
+
+  const cumulativeGPA = calculateCumulativeGPA();
+
   const bg = isDark ? '#111827' : '#f4f6f9';
   const cardBg = isDark ? '#1f2937' : '#ffffff';
   const textColor = isDark ? '#f9fafb' : '#1f2937';
@@ -65,13 +88,48 @@ export default function GPAScreen({ navigation }) {
 
   return (
     <ScrollView style={[styles.container, { backgroundColor: bg }]}>
-      <View style={styles.gpaBanner}>
-        <Text style={styles.gpaSubtitle}>Estimated Semester GPA</Text>
-        <Text style={styles.gpaScore}>{gpa}</Text>
-        <Text style={styles.gpaScale}>Out of 4.00 Scale</Text>
+      {/* GPA Banners */}
+      <View style={styles.bannerRow}>
+        <View style={[styles.gpaBanner, { flex: 1, marginRight: 8, backgroundColor: '#007AFF' }]}>
+          <Text style={styles.gpaSubtitle}>Semester GPA</Text>
+          <Text style={styles.gpaScore}>{semesterResult.gpa.toFixed(2)}</Text>
+          <Text style={styles.gpaScale}>{semesterResult.totalCredits} Credits</Text>
+        </View>
+
+        <View style={[styles.gpaBanner, { flex: 1, marginLeft: 8, backgroundColor: '#7c3aed' }]}>
+          <Text style={styles.gpaSubtitle}>Cumulative Full GPA</Text>
+          <Text style={styles.gpaScore}>{cumulativeGPA}</Text>
+          <Text style={styles.gpaScale}>Overall Standing</Text>
+        </View>
       </View>
 
-      <Text style={[styles.sectionHeader, { color: textColor }]}>Select Expected Grades</Text>
+      {/* Cumulative Inputs Card */}
+      <View style={[styles.card, { backgroundColor: cardBg }]}>
+        <Text style={[styles.sectionHeader, { color: textColor, marginBottom: 8 }]}>Previous Academic Record (Optional)</Text>
+        <Text style={{ color: subText, fontSize: 12, marginBottom: 12 }}>
+          Enter your previous cumulative GPA and total earned credits to calculate your new overall full GPA.
+        </Text>
+        <View style={styles.row}>
+          <TextInput
+            style={[styles.input, { flex: 1, color: textColor, borderColor: isDark ? '#374151' : '#ddd' }]}
+            keyboardType="numeric"
+            placeholder="Prev GPA (e.g. 3.50)"
+            placeholderTextColor="#9ca3af"
+            value={prevGpa}
+            onChangeText={setPrevGpa}
+          />
+          <TextInput
+            style={[styles.input, { flex: 1, color: textColor, borderColor: isDark ? '#374151' : '#ddd', marginLeft: 8 }]}
+            keyboardType="numeric"
+            placeholder="Prev Credits (e.g. 60)"
+            placeholderTextColor="#9ca3af"
+            value={prevCredits}
+            onChangeText={setPrevCredits}
+          />
+        </View>
+      </View>
+
+      <Text style={[styles.sectionHeader, { color: textColor }]}>Select Expected Grades for Current Courses</Text>
 
       {courses.map(course => (
         <View key={course.id} style={[styles.courseCard, { backgroundColor: cardBg }]}>
@@ -113,11 +171,15 @@ export default function GPAScreen({ navigation }) {
 
 const styles = StyleSheet.create({
   container: { flex: 1, padding: 16 },
-  gpaBanner: { backgroundColor: '#007AFF', padding: 24, borderRadius: 16, alignItems: 'center', marginBottom: 20, elevation: 4 },
-  gpaSubtitle: { color: '#dbeafe', fontSize: 14, fontWeight: '600' },
-  gpaScore: { color: '#ffffff', fontSize: 44, fontWeight: 'bold', marginVertical: 4 },
-  gpaScale: { color: '#bfdbfe', fontSize: 12 },
-  sectionHeader: { fontSize: 17, fontWeight: 'bold', marginBottom: 12 },
+  bannerRow: { flexDirection: 'row', marginBottom: 16 },
+  gpaBanner: { padding: 16, borderRadius: 16, alignItems: 'center', elevation: 4 },
+  gpaSubtitle: { color: '#dbeafe', fontSize: 12, fontWeight: '600' },
+  gpaScore: { color: '#ffffff', fontSize: 32, fontWeight: 'bold', marginVertical: 2 },
+  gpaScale: { color: '#bfdbfe', fontSize: 11 },
+  sectionHeader: { fontSize: 16, fontWeight: 'bold', marginBottom: 10 },
+  card: { padding: 16, borderRadius: 14, marginBottom: 16, elevation: 2 },
+  row: { flexDirection: 'row' },
+  input: { borderWidth: 1, borderRadius: 8, padding: 10, fontSize: 14 },
   courseCard: { padding: 16, borderRadius: 14, marginBottom: 12, elevation: 2 },
   courseHeader: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 4 },
   courseCode: { fontSize: 13, fontWeight: 'bold', color: '#007AFF' },
