@@ -1,8 +1,20 @@
-import React, { useState, useEffect, useContext } from 'react';
+import React, { useState, useContext } from 'react';
 import { View, Text, TextInput, TouchableOpacity, StyleSheet, ScrollView, Alert, Linking } from 'react-native';
 import { getAppData, saveAppData } from '../services/storage';
 import { ThemeContext } from '../../App';
 import { Ionicons } from '@expo/vector-icons';
+
+// University Grading Thresholds
+const GRADE_TARGETS = [
+  { grade: 'A+', minMark: 85 },
+  { grade: 'A',  minMark: 75 },
+  { grade: 'A-', minMark: 70 },
+  { grade: 'B+', minMark: 65 },
+  { grade: 'B',  minMark: 60 },
+  { grade: 'B-', minMark: 55 },
+  { grade: 'C+', minMark: 50 },
+  { grade: 'C (Pass)', minMark: 45 },
+];
 
 export default function CourseDetailScreen({ route }) {
   const { course } = route.params;
@@ -93,7 +105,40 @@ export default function CourseDetailScreen({ route }) {
     Linking.openURL(url).catch(() => Alert.alert('Error', 'Cannot open this URL.'));
   };
 
-  // Calculate Theory ICA (Best 2 of 3, 30% contribution)
+  // Helper to show exact weighted marks needed (out of 70 or 60) AND paper score (out of 100)
+  const buildTargetList = (icaContrib, examWeight) => {
+    const maxExamWeight = Math.round(examWeight * 100); // 70 for Theory, 60 for Practical
+
+    return GRADE_TARGETS.map(item => {
+      const neededFromExam = item.minMark - icaContrib;
+      let status = '';
+      let isImpossible = false;
+      let isAchieved = false;
+
+      if (neededFromExam <= 0) {
+        status = 'Already Achieved! 🎉';
+        isAchieved = true;
+      } else {
+        const requiredPaperScore = (neededFromExam / examWeight);
+        if (requiredPaperScore > 100) {
+          status = `Need ${neededFromExam.toFixed(1)}/${maxExamWeight} (>100% Impossible)`;
+          isImpossible = true;
+        } else {
+          status = `${neededFromExam.toFixed(1)}/${maxExamWeight}  ➔  ${Math.ceil(requiredPaperScore)}/100`;
+        }
+      }
+
+      return { 
+        grade: item.grade, 
+        minMark: item.minMark, 
+        required: status,
+        isImpossible,
+        isAchieved
+      };
+    });
+  };
+
+  // Calculate Theory ICA (Best 2 of 3, 30% contribution + 70% End Exam Targets)
   const calculateTheoryICA = () => {
     const m1 = parseFloat(tIca1) || 0;
     const m2 = parseFloat(tIca2) || 0;
@@ -101,12 +146,16 @@ export default function CourseDetailScreen({ route }) {
 
     const scores = [m1, m2, m3].sort((a, b) => b - a);
     const bestTwoAvg = (scores[0] + scores[1]) / 2;
-    const contribution = (bestTwoAvg * 0.30).toFixed(2);
+    const contribution = bestTwoAvg * 0.30;
 
-    setTheoryResult({ bestAvg: bestTwoAvg.toFixed(2), contribution });
+    setTheoryResult({
+      bestAvg: bestTwoAvg.toFixed(2),
+      contribution: contribution.toFixed(2),
+      targets: buildTargetList(contribution, 0.70)
+    });
   };
 
-  // Calculate Practical ICA (Best 2 of 3, 40% contribution)
+  // Calculate Practical ICA (Best 2 of 3, 40% contribution + 60% End Exam Targets)
   const calculatePracticalICA = () => {
     const m1 = parseFloat(pIca1) || 0;
     const m2 = parseFloat(pIca2) || 0;
@@ -114,9 +163,13 @@ export default function CourseDetailScreen({ route }) {
 
     const scores = [m1, m2, m3].sort((a, b) => b - a);
     const bestTwoAvg = (scores[0] + scores[1]) / 2;
-    const contribution = (bestTwoAvg * 0.40).toFixed(2);
+    const contribution = bestTwoAvg * 0.40;
 
-    setPracticalResult({ bestAvg: bestTwoAvg.toFixed(2), contribution });
+    setPracticalResult({
+      bestAvg: bestTwoAvg.toFixed(2),
+      contribution: contribution.toFixed(2),
+      targets: buildTargetList(contribution, 0.60)
+    });
   };
 
   const bg = isDark ? '#111827' : '#f4f6f9';
@@ -193,6 +246,132 @@ export default function CourseDetailScreen({ route }) {
         </TouchableOpacity>
       </View>
 
+      {/* Theory ICA Calculator (30% Weight) & End Exam Predictor */}
+      <View style={[styles.card, { backgroundColor: cardBg }]}>
+        <Text style={[styles.sectionTitle, { color: textColor }]}>📚 Theory ICA & Grade Target Predictor</Text>
+        <Text style={{ color: subText, fontSize: 12, marginBottom: 10 }}>
+          Enter Theory ICA marks (out of 100). Takes best 2 (30% weight) and shows marks needed from 70 & paper score out of 100.
+        </Text>
+
+        <View style={styles.row}>
+          <TextInput
+            style={[styles.input, { flex: 1, color: textColor, borderColor: isDark ? '#374151' : '#ddd' }]}
+            keyboardType="numeric"
+            placeholder="Theory ICA 1"
+            placeholderTextColor="#9ca3af"
+            value={tIca1}
+            onChangeText={setTIca1}
+          />
+          <TextInput
+            style={[styles.input, { flex: 1, color: textColor, borderColor: isDark ? '#374151' : '#ddd', marginHorizontal: 6 }]}
+            keyboardType="numeric"
+            placeholder="Theory ICA 2"
+            placeholderTextColor="#9ca3af"
+            value={tIca2}
+            onChangeText={setTIca2}
+          />
+          <TextInput
+            style={[styles.input, { flex: 1, color: textColor, borderColor: isDark ? '#374151' : '#ddd' }]}
+            keyboardType="numeric"
+            placeholder="Theory ICA 3"
+            placeholderTextColor="#9ca3af"
+            value={tIca3}
+            onChangeText={setTIca3}
+          />
+        </View>
+
+        <TouchableOpacity style={styles.calcBtn} onPress={calculateTheoryICA}>
+          <Text style={styles.saveBtnText}>Calculate Theory ICA & Exam Targets</Text>
+        </TouchableOpacity>
+
+        {theoryResult !== null && (
+          <View style={styles.resultBox}>
+            <Text style={styles.resultTitle}>Theory Evaluation & Target Breakdown</Text>
+            <Text style={styles.resultText}>Best 2 ICAs Average: {theoryResult.bestAvg} / 100</Text>
+            <Text style={styles.resultHighlight}>Theory ICA Contribution: {theoryResult.contribution} / 30</Text>
+            
+            <View style={styles.divider} />
+            <Text style={styles.targetHeader}>🎯 End Exam Need (Out of 70  ➔  Paper Out of 100):</Text>
+            {theoryResult.targets.map(t => (
+              <View key={t.grade} style={styles.targetRowBetween}>
+                <Text style={styles.targetRow}>• <Text style={styles.boldTarget}>{t.grade}</Text> ({t.minMark}+):</Text>
+                <Text style={[
+                  styles.boldTarget, 
+                  t.isImpossible && { color: '#ef4444' },
+                  t.isAchieved && { color: '#16a34a' }
+                ]}>
+                  {t.required}
+                </Text>
+              </View>
+            ))}
+          </View>
+        )}
+      </View>
+
+      {/* Practical ICA Calculator (40% Weight) & End Exam Predictor */}
+      {hasPractical && (
+        <View style={[styles.card, { backgroundColor: cardBg }]}>
+          <Text style={[styles.sectionTitle, { color: textColor }]}>🔬 Practical ICA & Grade Target Predictor</Text>
+          <Text style={{ color: subText, fontSize: 12, marginBottom: 10 }}>
+            Enter Practical ICA marks (out of 100). Takes best 2 (40% weight) and shows marks needed from 60 & paper score out of 100.
+          </Text>
+
+          <View style={styles.row}>
+            <TextInput
+              style={[styles.input, { flex: 1, color: textColor, borderColor: isDark ? '#374151' : '#ddd' }]}
+              keyboardType="numeric"
+              placeholder="Practical ICA 1"
+              placeholderTextColor="#9ca3af"
+              value={pIca1}
+              onChangeText={setPIca1}
+            />
+            <TextInput
+              style={[styles.input, { flex: 1, color: textColor, borderColor: isDark ? '#374151' : '#ddd', marginHorizontal: 6 }]}
+              keyboardType="numeric"
+              placeholder="Practical ICA 2"
+              placeholderTextColor="#9ca3af"
+              value={pIca2}
+              onChangeText={setPIca2}
+            />
+            <TextInput
+              style={[styles.input, { flex: 1, color: textColor, borderColor: isDark ? '#374151' : '#ddd' }]}
+              keyboardType="numeric"
+              placeholder="Practical ICA 3"
+              placeholderTextColor="#9ca3af"
+              value={pIca3}
+              onChangeText={setPIca3}
+            />
+          </View>
+
+          <TouchableOpacity style={[styles.calcBtn, { backgroundColor: '#7c3aed' }]} onPress={calculatePracticalICA}>
+            <Text style={styles.saveBtnText}>Calculate Practical ICA & Exam Targets</Text>
+          </TouchableOpacity>
+
+          {practicalResult !== null && (
+            <View style={[styles.resultBox, { backgroundColor: 'rgba(124, 58, 237, 0.1)' }]}>
+              <Text style={[styles.resultTitle, { color: '#7c3aed' }]}>Practical Evaluation & Target Breakdown</Text>
+              <Text style={styles.resultText}>Best 2 ICAs Average: {practicalResult.bestAvg} / 100</Text>
+              <Text style={[styles.resultHighlight, { color: '#7c3aed' }]}>Practical ICA Contribution: {practicalResult.contribution} / 40</Text>
+
+              <View style={styles.divider} />
+              <Text style={[styles.targetHeader, { color: '#6d28d9' }]}>🎯 Practical Exam Need (Out of 60  ➔  Paper Out of 100):</Text>
+              {practicalResult.targets.map(t => (
+                <View key={t.grade} style={styles.targetRowBetween}>
+                  <Text style={styles.targetRow}>• <Text style={styles.boldTarget}>{t.grade}</Text> ({t.minMark}+):</Text>
+                  <Text style={[
+                    styles.boldTarget, 
+                    t.isImpossible && { color: '#ef4444' },
+                    t.isAchieved && { color: '#16a34a' }
+                  ]}>
+                    {t.required}
+                  </Text>
+                </View>
+              ))}
+            </View>
+          )}
+        </View>
+      )}
+
       {/* Sub-Topics & Progress Section */}
       <View style={[styles.card, { backgroundColor: cardBg }]}>
         <Text style={[styles.sectionTitle, { color: textColor }]}>Course Sub-Topics & Progress</Text>
@@ -235,102 +414,6 @@ export default function CourseDetailScreen({ route }) {
           ))
         )}
       </View>
-
-      {/* Theory ICA Calculator (30% Weight) */}
-      <View style={[styles.card, { backgroundColor: cardBg }]}>
-        <Text style={[styles.sectionTitle, { color: textColor }]}>📚 Theory ICA Calculator (Best 2 of 3 - 30%)</Text>
-        <Text style={{ color: subText, fontSize: 12, marginBottom: 10 }}>
-          Enter Theory ICA marks (out of 100). Takes best 2 and calculates 30% contribution.
-        </Text>
-
-        <View style={styles.row}>
-          <TextInput
-            style={[styles.input, { flex: 1, color: textColor, borderColor: isDark ? '#374151' : '#ddd' }]}
-            keyboardType="numeric"
-            placeholder="Theory ICA 1"
-            placeholderTextColor="#9ca3af"
-            value={tIca1}
-            onChangeText={setTIca1}
-          />
-          <TextInput
-            style={[styles.input, { flex: 1, color: textColor, borderColor: isDark ? '#374151' : '#ddd', marginHorizontal: 6 }]}
-            keyboardType="numeric"
-            placeholder="Theory ICA 2"
-            placeholderTextColor="#9ca3af"
-            value={tIca2}
-            onChangeText={setTIca2}
-          />
-          <TextInput
-            style={[styles.input, { flex: 1, color: textColor, borderColor: isDark ? '#374151' : '#ddd' }]}
-            keyboardType="numeric"
-            placeholder="Theory ICA 3"
-            placeholderTextColor="#9ca3af"
-            value={tIca3}
-            onChangeText={setTIca3}
-          />
-        </View>
-
-        <TouchableOpacity style={styles.calcBtn} onPress={calculateTheoryICA}>
-          <Text style={styles.saveBtnText}>Calculate Theory ICA Contribution</Text>
-        </TouchableOpacity>
-
-        {theoryResult !== null && (
-          <View style={styles.resultBox}>
-            <Text style={styles.resultTitle}>Theory Evaluation Summary</Text>
-            <Text style={styles.resultText}>Best 2 ICAs Average: {theoryResult.bestAvg} / 100</Text>
-            <Text style={styles.resultHighlight}>Theory ICA Contribution (30%): {theoryResult.contribution}%</Text>
-          </View>
-        )}
-      </View>
-
-      {/* Practical ICA Calculator (40% Weight - Shown only if hasPractical) */}
-      {hasPractical && (
-        <View style={[styles.card, { backgroundColor: cardBg, marginBottom: 30 }]}>
-          <Text style={[styles.sectionTitle, { color: textColor }]}>🔬 Practical ICA Calculator (Best 2 of 3 - 40%)</Text>
-          <Text style={{ color: subText, fontSize: 12, marginBottom: 10 } }>
-            Enter Practical ICA marks (out of 100). Takes best 2 and calculates 40% contribution.
-          </Text>
-
-          <View style={styles.row}>
-            <TextInput
-              style={[styles.input, { flex: 1, color: textColor, borderColor: isDark ? '#374151' : '#ddd' }]}
-              keyboardType="numeric"
-              placeholder="Practical ICA 1"
-              placeholderTextColor="#9ca3af"
-              value={pIca1}
-              onChangeText={setPIca1}
-            />
-            <TextInput
-              style={[styles.input, { flex: 1, color: textColor, borderColor: isDark ? '#374151' : '#ddd', marginHorizontal: 6 }]}
-              keyboardType="numeric"
-              placeholder="Practical ICA 2"
-              placeholderTextColor="#9ca3af"
-              value={pIca2}
-              onChangeText={setPIca2}
-            />
-            <TextInput
-              style={[styles.input, { flex: 1, color: textColor, borderColor: isDark ? '#374151' : '#ddd' }]}
-              keyboardType="numeric"
-              placeholder="Practical ICA 3"
-              placeholderTextColor="#9ca3af"
-              value={pIca3}
-              onChangeText={setPIca3}
-            />
-          </View>
-
-          <TouchableOpacity style={[styles.calcBtn, { backgroundColor: '#7c3aed' }]} onPress={calculatePracticalICA}>
-            <Text style={styles.saveBtnText}>Calculate Practical ICA Contribution</Text>
-          </TouchableOpacity>
-
-          {practicalResult !== null && (
-            <View style={[styles.resultBox, { backgroundColor: 'rgba(124, 58, 237, 0.1)' }]}>
-              <Text style={[styles.resultTitle, { color: '#7c3aed' }]}>Practical Evaluation Summary</Text>
-              <Text style={styles.resultText}>Best 2 ICAs Average: {practicalResult.bestAvg} / 100</Text>
-              <Text style={[styles.resultHighlight, { color: '#7c3aed' }]}>Practical ICA Contribution (40%): {practicalResult.contribution}%</Text>
-            </View>
-          )}
-        </View>
-      )}
 
       {/* VLE Resource Link & Notes Section */}
       <View style={[styles.card, { backgroundColor: cardBg, marginBottom: 40 }]}>
@@ -384,8 +467,13 @@ const styles = StyleSheet.create({
   saveBtn: { backgroundColor: '#007AFF', padding: 12, borderRadius: 8, alignItems: 'center', marginTop: 8 },
   saveBtnText: { color: '#fff', fontWeight: 'bold' },
   calcBtn: { backgroundColor: '#6366f1', padding: 12, borderRadius: 8, alignItems: 'center', marginTop: 10 },
-  resultBox: { marginTop: 12, padding: 12, backgroundColor: 'rgba(99, 102, 241, 0.1)', borderRadius: 8 },
-  resultTitle: { color: '#4f46e5', fontWeight: 'bold', fontSize: 13, marginBottom: 4 },
+  resultBox: { marginTop: 12, padding: 14, backgroundColor: 'rgba(99, 102, 241, 0.1)', borderRadius: 10 },
+  resultTitle: { color: '#4f46e5', fontWeight: 'bold', fontSize: 14, marginBottom: 4 },
   resultText: { color: '#374151', fontSize: 13, marginBottom: 2 },
-  resultHighlight: { color: '#16a34a', fontWeight: 'bold', fontSize: 14 }
+  resultHighlight: { color: '#16a34a', fontWeight: 'bold', fontSize: 14, marginBottom: 4 },
+  divider: { height: 1, backgroundColor: 'rgba(0,0,0,0.1)', marginVertical: 8 },
+  targetHeader: { fontSize: 12, fontWeight: 'bold', color: '#1e40af', marginBottom: 6 },
+  targetRowBetween: { flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 3, borderBottomWidth: 0.5, borderBottomColor: 'rgba(0,0,0,0.05)' },
+  targetRow: { fontSize: 13, color: '#374151' },
+  boldTarget: { fontWeight: 'bold', color: '#111827', fontSize: 12 }
 });
