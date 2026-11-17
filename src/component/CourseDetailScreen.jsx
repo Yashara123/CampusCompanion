@@ -24,6 +24,7 @@ export default function CourseDetailScreen({ route }) {
   const [notes, setNotes] = useState(course.notes || '');
   const [subTopics, setSubTopics] = useState(course.subTopics || []);
   const [newSubTopic, setNewSubTopic] = useState('');
+  const [expandedTopicId, setExpandedTopicId] = useState(null);
 
   // Theory & Practical Credit Split States
   const [theoryCredits, setTheoryCredits] = useState(course.theoryCredits?.toString() || '2');
@@ -67,47 +68,80 @@ export default function CourseDetailScreen({ route }) {
     Alert.alert('Saved', `Course details updated! Total Credits: ${totalCredits}`);
   };
 
+  // Sync subTopics changes directly to AsyncStorage
+  const syncSubTopicsToStorage = async (updatedTopics) => {
+    setSubTopics(updatedTopics);
+    const data = await getAppData();
+    data.courses = data.courses.map(c => {
+      if (c.id === course.id) return { ...c, subTopics: updatedTopics };
+      return c;
+    });
+    await saveAppData(data);
+  };
+
   const handleAddSubTopic = async () => {
     if (!newSubTopic.trim()) return;
-    const updatedTopics = [...subTopics, { id: Date.now().toString(), title: newSubTopic, completed: false }];
-    setSubTopics(updatedTopics);
+    const newId = Date.now().toString();
+    const updatedTopics = [
+      ...subTopics,
+      {
+        id: newId,
+        title: newSubTopic.trim(),
+        completed: false,
+        resourceLink: ''
+      }
+    ];
+    await syncSubTopicsToStorage(updatedTopics);
     setNewSubTopic('');
-
-    const data = await getAppData();
-    data.courses = data.courses.map(c => {
-      if (c.id === course.id) return { ...c, subTopics: updatedTopics };
-      return c;
-    });
-    await saveAppData(data);
+    setExpandedTopicId(newId);
   };
 
-  const toggleSubTopic = async (id) => {
-    const updatedTopics = subTopics.map(t => {
-      if (t.id === id) return { ...t, completed: !t.completed };
-      return t;
-    });
+  const toggleSubTopicComplete = async (id) => {
+    const updatedTopics = subTopics.map(t =>
+      t.id === id ? { ...t, completed: !t.completed } : t
+    );
+    await syncSubTopicsToStorage(updatedTopics);
+  };
+
+  const updateSubTopicLink = (id, value) => {
+    const updatedTopics = subTopics.map(t =>
+      t.id === id ? { ...t, resourceLink: value } : t
+    );
     setSubTopics(updatedTopics);
-
-    const data = await getAppData();
-    data.courses = data.courses.map(c => {
-      if (c.id === course.id) return { ...c, subTopics: updatedTopics };
-      return c;
-    });
-    await saveAppData(data);
   };
 
-  const handleOpenLink = () => {
-    if (!resourceLink.trim()) {
-      Alert.alert('No Link', 'Please enter a valid VLE or Drive URL first.');
+  const handleSaveSubTopicLink = async () => {
+    await syncSubTopicsToStorage(subTopics);
+    Alert.alert('Saved', 'Sub-topic resource link saved!');
+  };
+
+  const handleDeleteSubTopic = (id) => {
+    Alert.alert('Delete Sub-Topic', 'Remove this sub-topic?', [
+      { text: 'Cancel', style: 'cancel' },
+      {
+        text: 'Delete',
+        style: 'destructive',
+        onPress: async () => {
+          const updatedTopics = subTopics.filter(t => t.id !== id);
+          await syncSubTopicsToStorage(updatedTopics);
+          if (expandedTopicId === id) setExpandedTopicId(null);
+        }
+      }
+    ]);
+  };
+
+  const handleOpenLink = (urlInput) => {
+    if (!urlInput || !urlInput.trim()) {
+      Alert.alert('No Link', 'Please enter a valid VLE, YouTube, or Drive URL first.');
       return;
     }
-    const url = resourceLink.startsWith('http') ? resourceLink : `https://${resourceLink}`;
+    const url = urlInput.trim().startsWith('http') ? urlInput.trim() : `https://${urlInput.trim()}`;
     Linking.openURL(url).catch(() => Alert.alert('Error', 'Cannot open this URL.'));
   };
 
   // Helper to show exact weighted marks needed (out of 70 or 60) AND paper score (out of 100)
   const buildTargetList = (icaContrib, examWeight) => {
-    const maxExamWeight = Math.round(examWeight * 100); // 70 for Theory, 60 for Practical
+    const maxExamWeight = Math.round(examWeight * 100);
 
     return GRADE_TARGETS.map(item => {
       const neededFromExam = item.minMark - icaContrib;
@@ -119,7 +153,7 @@ export default function CourseDetailScreen({ route }) {
         status = 'Already Achieved! 🎉';
         isAchieved = true;
       } else {
-        const requiredPaperScore = (neededFromExam / examWeight);
+        const requiredPaperScore = neededFromExam / examWeight;
         if (requiredPaperScore > 100) {
           status = `Need ${neededFromExam.toFixed(1)}/${maxExamWeight} (>100% Impossible)`;
           isImpossible = true;
@@ -128,9 +162,9 @@ export default function CourseDetailScreen({ route }) {
         }
       }
 
-      return { 
-        grade: item.grade, 
-        minMark: item.minMark, 
+      return {
+        grade: item.grade,
+        minMark: item.minMark,
         required: status,
         isImpossible,
         isAchieved
@@ -176,6 +210,7 @@ export default function CourseDetailScreen({ route }) {
   const cardBg = isDark ? '#1f2937' : '#ffffff';
   const textColor = isDark ? '#f9fafb' : '#1f2937';
   const subText = isDark ? '#9ca3af' : '#6c757d';
+  const nestedBg = isDark ? '#283548' : '#f8fafc';
 
   return (
     <ScrollView style={[styles.container, { backgroundColor: bg }]}>
@@ -349,7 +384,7 @@ export default function CourseDetailScreen({ route }) {
 
           {practicalResult !== null && (
             <View style={[styles.resultBox, { backgroundColor: 'rgba(124, 58, 237, 0.1)' }]}>
-              <Text style={[styles.resultTitle, { color: '#7c3aed' }]}>Practical Evaluation & Target Breakdown</Text>
+              <Text style={[styles.resultTitle, { color: '#7c3aed' }]}>Practical Evaluation & Target Summary</Text>
               <Text style={styles.resultText}>Best 2 ICAs Average: {practicalResult.bestAvg} / 100</Text>
               <Text style={[styles.resultHighlight, { color: '#7c3aed' }]}>Practical ICA Contribution: {practicalResult.contribution} / 40</Text>
 
@@ -372,14 +407,17 @@ export default function CourseDetailScreen({ route }) {
         </View>
       )}
 
-      {/* Sub-Topics & Progress Section */}
+      {/* Sub-Topics with Per-Topic Resource Link */}
       <View style={[styles.card, { backgroundColor: cardBg }]}>
-        <Text style={[styles.sectionTitle, { color: textColor }]}>Course Sub-Topics & Progress</Text>
+        <Text style={[styles.sectionTitle, { color: textColor }]}>📖 Sub-Topics & Resource Links</Text>
+        <Text style={{ color: subText, fontSize: 12, marginBottom: 10 }}>
+          Add syllabus sub-topics and attach a direct VLE, Drive, or YouTube resource link to each topic.
+        </Text>
         
         <View style={styles.row}>
           <TextInput
             style={[styles.input, { flex: 1, color: textColor, borderColor: isDark ? '#374151' : '#ddd' }]}
-            placeholder="Add sub-topic (e.g., Module 1 Lab Exercises)"
+            placeholder="Add sub-topic (e.g., Lesson 01: Normalization)"
             placeholderTextColor="#9ca3af"
             value={newSubTopic}
             onChangeText={setNewSubTopic}
@@ -392,32 +430,95 @@ export default function CourseDetailScreen({ route }) {
         {subTopics.length === 0 ? (
           <Text style={{ color: subText, fontSize: 13, marginTop: 4 }}>No sub-topics added yet.</Text>
         ) : (
-          subTopics.map(topic => (
-            <TouchableOpacity 
-              key={topic.id} 
-              style={[styles.topicRow, { backgroundColor: isDark ? '#374151' : '#f3f4f6' }]}
-              onPress={() => toggleSubTopic(topic.id)}
-            >
-              <Ionicons 
-                name={topic.completed ? "checkbox" : "square-outline"} 
-                size={20} 
-                color={topic.completed ? "#16a34a" : "#007AFF"} 
-              />
-              <Text style={[
-                styles.topicText, 
-                { color: textColor }, 
-                topic.completed && styles.completedText
-              ]}>
-                {topic.title}
-              </Text>
-            </TouchableOpacity>
-          ))
+          subTopics.map(topic => {
+            const isExpanded = expandedTopicId === topic.id;
+            const hasLink = Boolean(topic.resourceLink && topic.resourceLink.trim());
+
+            return (
+              <View key={topic.id} style={[styles.topicContainer, { borderColor: isDark ? '#374151' : '#e5e7eb' }]}>
+                {/* Topic Header Row */}
+                <View style={[styles.topicHeaderRow, { backgroundColor: isDark ? '#374151' : '#f3f4f6' }]}>
+                  <TouchableOpacity onPress={() => toggleSubTopicComplete(topic.id)} style={{ paddingRight: 8 }}>
+                    <Ionicons 
+                      name={topic.completed ? "checkbox" : "square-outline"} 
+                      size={22} 
+                      color={topic.completed ? "#16a34a" : "#007AFF"} 
+                    />
+                  </TouchableOpacity>
+
+                  <TouchableOpacity 
+                    style={{ flex: 1 }} 
+                    onPress={() => setExpandedTopicId(isExpanded ? null : topic.id)}
+                  >
+                    <Text style={[
+                      styles.topicText, 
+                      { color: textColor }, 
+                      topic.completed && styles.completedText
+                    ]}>
+                      {topic.title}
+                    </Text>
+                    {hasLink && !isExpanded && (
+                      <Text style={{ fontSize: 11, color: '#10b981', marginTop: 2 }}>
+                        🔗 Resource link attached (Tap to view/open)
+                      </Text>
+                    )}
+                  </TouchableOpacity>
+
+                  {hasLink && !isExpanded && (
+                    <TouchableOpacity 
+                      onPress={() => handleOpenLink(topic.resourceLink)}
+                      style={{ paddingHorizontal: 8 }}
+                    >
+                      <Ionicons name="open-outline" size={20} color="#10b981" />
+                    </TouchableOpacity>
+                  )}
+
+                  <TouchableOpacity 
+                    onPress={() => setExpandedTopicId(isExpanded ? null : topic.id)}
+                    style={{ paddingHorizontal: 6 }}
+                  >
+                    <Ionicons name={isExpanded ? "chevron-up" : "chevron-down"} size={20} color={subText} />
+                  </TouchableOpacity>
+
+                  <TouchableOpacity onPress={() => handleDeleteSubTopic(topic.id)} style={{ paddingLeft: 4 }}>
+                    <Ionicons name="trash-outline" size={18} color="#ef4444" />
+                  </TouchableOpacity>
+                </View>
+
+                {/* Expandable Body: Resource Link Input & Actions */}
+                {isExpanded && (
+                  <View style={[styles.topicDetailsBox, { backgroundColor: nestedBg }]}>
+                    <Text style={[styles.fieldLabel, { color: textColor }]}>🔗 Resource Link (VLE PDF / Google Drive / Video)</Text>
+                    <View style={styles.row}>
+                      <TextInput
+                        style={[styles.input, { flex: 1, color: textColor, borderColor: isDark ? '#4b5563' : '#d1d5db', marginBottom: 0 }]}
+                        placeholder="https://..."
+                        placeholderTextColor="#9ca3af"
+                        value={topic.resourceLink || ''}
+                        onChangeText={(val) => updateSubTopicLink(topic.id, val)}
+                      />
+                      <TouchableOpacity 
+                        style={styles.miniOpenBtn} 
+                        onPress={() => handleOpenLink(topic.resourceLink)}
+                      >
+                        <Ionicons name="open-outline" size={18} color="#fff" />
+                      </TouchableOpacity>
+                    </View>
+
+                    <TouchableOpacity style={styles.saveSubBtn} onPress={handleSaveSubTopicLink}>
+                      <Text style={styles.saveBtnText}>💾 Save Resource Link</Text>
+                    </TouchableOpacity>
+                  </View>
+                )}
+              </View>
+            );
+          })
         )}
       </View>
 
-      {/* VLE Resource Link & Notes Section */}
+      {/* General Course VLE Resource Link & Notes Section */}
       <View style={[styles.card, { backgroundColor: cardBg, marginBottom: 40 }]}>
-        <Text style={[styles.sectionTitle, { color: textColor }]}>VLE & Study Resources</Text>
+        <Text style={[styles.sectionTitle, { color: textColor }]}>🌐 Main Course VLE Link & General Notes</Text>
         <TextInput
           style={[styles.input, { color: textColor, borderColor: isDark ? '#374151' : '#ddd' }]}
           placeholder="e.g., https://vle.vau.ac.lk/course/..."
@@ -425,13 +526,13 @@ export default function CourseDetailScreen({ route }) {
           value={resourceLink}
           onChangeText={setResourceLink}
         />
-        <TouchableOpacity style={styles.linkBtn} onPress={handleOpenLink}>
-          <Text style={styles.linkBtnText}>🔗 Open Resource Link</Text>
+        <TouchableOpacity style={styles.linkBtn} onPress={() => handleOpenLink(resourceLink)}>
+          <Text style={styles.linkBtnText}>🔗 Open Main Course Link</Text>
         </TouchableOpacity>
 
         <TextInput
           style={[styles.input, { height: 60, color: textColor, borderColor: isDark ? '#374151' : '#ddd', marginTop: 12 }]}
-          placeholder="Quick module notes..."
+          placeholder="General module notes..."
           placeholderTextColor="#9ca3af"
           multiline
           value={notes}
@@ -453,15 +554,20 @@ const styles = StyleSheet.create({
   lecturer: { fontSize: 13 },
   badgeRow: { flexDirection: 'row', marginTop: 8 },
   badge: { padding: 6, borderRadius: 6, backgroundColor: 'rgba(0, 122, 255, 0.1)', alignSelf: 'flex-start' },
-  sectionTitle: { fontSize: 16, fontWeight: 'bold', marginBottom: 12 },
+  sectionTitle: { fontSize: 16, fontWeight: 'bold', marginBottom: 10 },
   input: { borderWidth: 1, borderRadius: 8, padding: 10, fontSize: 14, marginBottom: 8 },
   row: { flexDirection: 'row', alignItems: 'center' },
   switchRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 },
   toggleBtn: { paddingVertical: 6, paddingHorizontal: 12, borderRadius: 8 },
-  addTopicBtn: { backgroundColor: '#007AFF', padding: 10, borderRadius: 8, marginLeft: 8, justifyContent: 'center', alignItems: 'center', height: 44 },
-  topicRow: { flexDirection: 'row', alignItems: 'center', padding: 10, borderRadius: 8, marginTop: 6 },
-  topicText: { marginLeft: 10, fontSize: 14, fontWeight: '500' },
+  addTopicBtn: { backgroundColor: '#007AFF', padding: 10, borderRadius: 8, marginLeft: 8, justifyContent: 'center', alignItems: 'center', height: 44, marginBottom: 8 },
+  topicContainer: { borderWidth: 1, borderRadius: 10, marginTop: 8, overflow: 'hidden' },
+  topicHeaderRow: { flexDirection: 'row', alignItems: 'center', padding: 12 },
+  topicText: { fontSize: 14, fontWeight: '600' },
   completedText: { textDecorationLine: 'line-through', color: '#9ca3af' },
+  topicDetailsBox: { padding: 12, borderTopWidth: 1, borderTopColor: 'rgba(0,0,0,0.06)' },
+  fieldLabel: { fontSize: 12, fontWeight: 'bold', marginBottom: 6 },
+  miniOpenBtn: { backgroundColor: '#10b981', padding: 10, borderRadius: 8, marginLeft: 8, justifyContent: 'center', alignItems: 'center', height: 42 },
+  saveSubBtn: { backgroundColor: '#0284c7', padding: 10, borderRadius: 8, alignItems: 'center', marginTop: 10 },
   linkBtn: { backgroundColor: '#10b981', padding: 12, borderRadius: 8, alignItems: 'center', marginTop: 4 },
   linkBtnText: { color: '#fff', fontWeight: 'bold' },
   saveBtn: { backgroundColor: '#007AFF', padding: 12, borderRadius: 8, alignItems: 'center', marginTop: 8 },

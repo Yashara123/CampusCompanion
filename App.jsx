@@ -1,5 +1,5 @@
-import React, { useState, createContext } from 'react';
-import { View, StyleSheet } from 'react-native';
+import React, { useState, useEffect, useRef, createContext } from 'react';
+import { View, TouchableOpacity, Alert, Platform, StyleSheet } from 'react-native';
 import { NavigationContainer, DefaultTheme, DarkTheme } from '@react-navigation/native';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
@@ -41,11 +41,52 @@ function AssignmentsStack() {
 export default function App() {
   const [isDark, setIsDark] = useState(false);
   const toggleTheme = () => setIsDark(!isDark);
+  const navigationRef = useRef(null);
+
+  // Sunday Weekly Review & Daily Focus Update Notification (Mobile & Web)
+  const triggerSundayReviewNotification = () => {
+    if (Platform.OS === 'web') {
+      const goToPlanner = window.confirm(
+        '🔔 Sunday Weekly Review Reminder\n\nHappy Sunday! Time to review your weekly syllabus progress and update your Daily Focus goals for the upcoming week.\n\nClick OK to open Daily Focus.'
+      );
+      if (goToPlanner && navigationRef.current) {
+        navigationRef.current.navigate('Planner');
+      }
+      return;
+    }
+
+    Alert.alert(
+      '🔔 Sunday Weekly Review Reminder',
+      'Happy Sunday! Time to review your weekly syllabus progress and update your Daily Focus goals for the upcoming week.',
+      [
+        { text: 'Later', style: 'cancel' },
+        {
+          text: 'Update Daily Focus ➔',
+          onPress: () => {
+            if (navigationRef.current) {
+              navigationRef.current.navigate('Planner');
+            }
+          }
+        }
+      ]
+    );
+  };
+
+  // Automatically check if today is Sunday (getDay() === 0) when app opens
+  useEffect(() => {
+    const today = new Date();
+    if (today.getDay() === 0) {
+      const timer = setTimeout(() => {
+        triggerSundayReviewNotification();
+      }, 1000);
+      return () => clearTimeout(timer);
+    }
+  }, []);
 
   return (
     <View style={styles.screenContainer}>
       <ThemeContext.Provider value={{ isDark, toggleTheme }}>
-        <NavigationContainer theme={isDark ? DarkTheme : DefaultTheme}>
+        <NavigationContainer ref={navigationRef} theme={isDark ? DarkTheme : DefaultTheme}>
           <Tab.Navigator
             screenOptions={({ route }) => ({
               tabBarIcon: ({ focused, color, size }) => {
@@ -62,7 +103,21 @@ export default function App() {
               tabBarInactiveTintColor: isDark ? '#9ca3af' : 'gray',
             })}
           >
-            <Tab.Screen name="Home" component={HomeScreen} options={{ title: 'Dashboard' }} />
+            <Tab.Screen
+              name="Home"
+              component={HomeScreen}
+              options={{
+                title: 'Dashboard',
+                headerRight: () => (
+                  <TouchableOpacity
+                    onPress={triggerSundayReviewNotification}
+                    style={{ marginRight: 16, padding: 4 }}
+                  >
+                    <Ionicons name="notifications-outline" size={24} color="#007AFF" />
+                  </TouchableOpacity>
+                ),
+              }}
+            />
             <Tab.Screen name="Courses" component={CoursesStack} options={{ headerShown: false }} />
             <Tab.Screen name="Planner" component={StudyPlannerScreen} options={{ title: 'Daily Focus' }} />
             <Tab.Screen name="Calendar" component={CalendarScreen} options={{ title: 'Schedule' }} />
